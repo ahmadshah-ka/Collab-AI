@@ -51,7 +51,7 @@ Update the relevant context file whenever implementation changes:
 - Code conventions or standards
 - Feature scope
 
-Progress state must reflect the actual state of the implementation, not the intended state. Also, structure it in an organised way so feature 01, feature 02 are clearly understandable.
+Progress state must reflect the actual state of the implementation, not the intended state. Also, structure it in an organised but summarised way so feature 01, feature 02 and so on, are clearly understandable. Making sure details are brief.
 
 ## Before Moving To The Next Unit
 
