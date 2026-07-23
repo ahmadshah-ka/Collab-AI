@@ -1,7 +1,9 @@
 "use client"
 
+import { useEffect, useRef } from "react"
 import { FolderOpen, Plus, X } from "lucide-react"
 
+import { SIDEBAR_TOGGLE_ID } from "@/components/editor/editor-navbar"
 import { Button } from "@/components/ui/button"
 import {
   Tabs,
@@ -26,8 +28,19 @@ function EmptyProjectsState() {
 }
 
 export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
+  const wasOpenRef = useRef(isOpen)
+
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen) {
+      document.getElementById(SIDEBAR_TOGGLE_ID)?.focus()
+    }
+    wasOpenRef.current = isOpen
+  }, [isOpen])
+
   return (
     <aside
+      inert={!isOpen}
+      aria-hidden={!isOpen}
       className={cn(
         "fixed top-[4.5rem] bottom-4 left-4 z-40 flex w-80 flex-col rounded-2xl border border-surface-border bg-surface/95 shadow-2xl backdrop-blur-sm transition-transform duration-200 ease-in-out",
         isOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"

@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Feature 02: Editor Chrome (context/feature-specs/02-editor.md) — complete.
+- Feature 03: Auth (context/feature-specs/03-auth.md) — complete.
 
 ## Current Goal
 
-- Editor chrome (navbar + sidebar + composed layout) is done. Next goal not yet defined — pick the next feature unit from context/project-overview.md scope.
+- Auth is wired end to end (provider, auth pages, route protection, user menu). Next goal not yet defined — pick the next feature unit from context/project-overview.md scope (e.g. project creation/ownership, the next item in the Authentication and Projects feature group).
 
 ## Features
 
@@ -38,9 +38,33 @@ Spec: `context/feature-specs/02-editor.md` — complete.
   - Verified `tsc --noEmit`, `npm run lint`, and `next build` (including the new `/editor` route) all pass.
   - Visually verified in a headless Edge browser (via a temporary `puppeteer-core` script, removed after use — Playwright/`chromium-cli` were not available in this environment): navbar renders with the toggle icon, sidebar floats below the navbar without overlapping it, tabs/empty-state/New Project button render correctly, and toggling the sidebar slides it fully off-screen without shifting the canvas placeholder. No console errors.
 
+### Feature 03 — Auth
+
+Spec: `context/feature-specs/03-auth.md` — complete.
+
+- **Completed**:
+  - `lib/clerk-appearance.ts` — shared `clerkAppearance` object: Clerk's `dark` theme (`@clerk/ui/themes`) with every `variables` color/font/radius entry overridden to reference the app's own CSS custom properties (`var(--accent-primary)`, `var(--bg-surface)`, etc.) instead of the theme's hardcoded hex values; `borderRadius` set to the card/panel radius scale (`calc(var(--radius) * 1.8)`, matching `rounded-2xl`).
+  - `app/layout.tsx` — root layout wrapped with `<ClerkProvider appearance={clerkAppearance}>` inside `<body>`.
+  - `components/auth/auth-layout.tsx` + `app/(auth)/layout.tsx` — shared two-panel chrome for auth routes: exact 50/50 `lg:grid-cols-2` split; left panel tinted with `bg-accent-dim` (flat, no gradient) and holds a compact logo, a heading + supporting sentence, and an icon-prefixed feature list (lucide icon chip + title + description, no card borders/backgrounds); right panel centers the Clerk form on the plain base background; left panel hidden below `lg`. Revised after an initial text-only pass per user feedback against a reference screenshot — see Session notes.
+  - `app/(auth)/sign-in/[[...sign-in]]/page.tsx` and `app/(auth)/sign-up/[[...sign-up]]/page.tsx` — Clerk `<SignIn />` / `<SignUp />` catch-all routes; the `(auth)` route group doesn't affect the URL, so paths remain `/sign-in` and `/sign-up`.
+  - `proxy.ts` (project root) — Next.js 16 renamed the `middleware.ts` file convention to `proxy.ts`; the `clerkMiddleware()` helper itself is unchanged. Uses `createRouteMatcher` with a protected-first strategy: public routes are `${NEXT_PUBLIC_CLERK_SIGN_IN_URL}(.*)` and `${NEXT_PUBLIC_CLERK_SIGN_UP_URL}(.*)` (derived from env vars, not hardcoded), everything else calls `auth.protect()`.
+  - `.env.local` — added `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up` (Clerk's standard env var names — these drive both the proxy's public-route matcher and Clerk's own sign-in/sign-up linking; no new/renamed env vars invented).
+  - `app/page.tsx` — now a Server Component; `await auth()` then redirects authenticated users to `/editor`, unauthenticated to `/sign-in` (the unauthenticated branch is effectively unreachable in practice since `proxy.ts` already redirects signed-out requests to `/` before the page runs, but it's kept explicit since the spec calls it out per-route).
+  - `components/editor/editor-navbar.tsx` — added Clerk's built-in `<UserButton />` to the previously-empty right section.
+  - `package.json` — added `@clerk/ui` (theme source only; `@clerk/nextjs` was already present).
+- **Architecture decisions**:
+  - Appearance theming is centralized once at the `ClerkProvider` level (`lib/clerk-appearance.ts`) rather than repeated per-component (`<SignIn appearance>`, `<UserButton appearance>`, etc.), so every Clerk component — including `UserButton` in the navbar — picks up the same CSS-variable-mapped dark theme automatically.
+  - `@clerk/ui`'s optional `ui` prop (bundles Clerk's UI locally instead of loading it from Clerk's CDN) was deliberately **not** wired up — the spec only asked for the `dark` theme object from `@clerk/ui/themes`, and `ui` is an unrelated, separate opt-in (confirmed via `@clerk/react`'s `ClerkProviderProps` types: `ui` is optional, appearance/theme works identically without it).
+  - Public-route matching in `proxy.ts` reads `NEXT_PUBLIC_CLERK_SIGN_IN_URL`/`NEXT_PUBLIC_CLERK_SIGN_UP_URL` at runtime instead of hardcoding `/sign-in`/`/sign-up`, so the route protection stays in sync with wherever those env vars point.
+- **Session notes**:
+  - Confirmed via `node_modules/next/dist/docs/01-app/01-getting-started/16-proxy.md` that Next.js 16 only renamed the middleware *file*, not its runtime behavior — `proxy.ts` accepts the same default-export function signature `clerkMiddleware()` already produces.
+  - Verified `tsc --noEmit`, `npm run lint`, and `next build` all pass; build output confirms `proxy.ts` is picked up as "Proxy (Middleware)" and `/sign-in`, `/sign-up` compile as dynamic catch-all routes.
+  - Visually verified end to end with a temporary `puppeteer-core` script (installed with `--no-save`, removed after use — same approach as Feature 02): `/` redirects (307) to `/sign-in` when signed out; `/sign-in` renders the two-panel layout with the left panel hidden at a 500px mobile viewport; computed styles confirm the theme override actually applies the app's tokens through Clerk's internals (primary button `background-color: rgb(0, 200, 212)` = `--accent-primary`, feature-list text `rgb(128, 128, 144)` = `--text-muted`, tagline `rgb(192, 192, 204)` = `--text-secondary`); zero console errors.
+  - **UI revision**: after the initial build, the user compared it against an external reference screenshot (a different product's sign-in page) and asked for an exact 50/50 split, a colored left panel, and a font check. Diagnosed first rather than assuming a bug: a `puppeteer-core` check of computed `font-family` on the body, heading, Clerk's card title, and form elements all already resolved to `Geist, "Geist Fallback"` — the font pipeline was correct, so "fix the fonts" meant applying the documented Geist Sans token more deliberately in the new heading/feature-list typography, not fixing a defect. The flat black left panel (identical to the page background) was the real gap; fixed by giving it a `bg-accent-dim` background — reusing the existing `--accent-primary-dim` token (already documented in `ui-context.md` for exactly this kind of subtle wash) rather than inventing a new color. Re-verified visually (screenshot) and confirmed zero console errors and a clean mobile collapse after the change.
+
 ## Next Up
 
-- Add the next planned feature unit here.
+- Project creation, ownership, and the project list/workspace navigation (`Authentication and Projects` feature group in `context/project-overview.md`) — the next natural unit now that auth and route protection exist.
 
 ## Open Questions
 
