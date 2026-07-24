@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Feature 04: Project Dialogs & Editor Home (context/feature-specs/04-project-dialogs.md) — complete.
+- Feature 05: Prisma Schema And Data Layer (context/feature-specs/05-prisma.md) — complete.
 
 ## Current Goal
 
-- Feature 04 is done. Next: replace the mock project data layer with real persistence (API routes + Prisma) per `Authentication and Projects` in `context/project-overview.md`.
+- Feature 05 is done. Next: build the project API routes (auth + ownership checks, CRUD) on top of `lib/prisma.ts`, then replace the `use-project-dialogs` mock data layer with real calls, per `Authentication and Projects` in `context/project-overview.md`.
 
 ## Features
 
@@ -84,9 +84,22 @@ Spec: `context/feature-specs/04-project-dialogs.md` — complete.
   - Visually verified end to end with a temporary `puppeteer-core` script (installed with `--no-save`, removed after use, same approach as Features 02/03; `chromium-cli` unavailable in this environment): confirmed the editor home renders, the Create dialog's slug preview updates live while typing, the sidebar's owned-project dropdown shows Rename/Delete while the Shared tab shows zero action buttons, the Rename dialog prefills the name and autofocuses the input, the Delete dialog shows the destructive-styled confirm button, and the mobile viewport (400px) renders the backdrop scrim which closes the sidebar on click. Zero console errors.
   - `/editor` is auth-protected (`proxy.ts`), so visual verification required temporarily adding `/editor` to the proxy's public-route matcher for the duration of the puppeteer script; the change was reverted immediately after (confirmed via `git diff` — `grep -n "editor" proxy.ts` returns nothing) and `tsc`/`lint`/`build` were re-run against the reverted file to confirm the final state is clean.
 
+### Feature 05 — Prisma Schema And Data Layer
+
+Spec: `context/feature-specs/05-prisma.md` — complete.
+
+- **Completed**:
+  - `prisma/models/project.prisma` — `Project` (`ownerId` mapped to a Clerk user ID, `name`, optional `description`, `status: ProjectStatus` enum (`DRAFT`/`ARCHIVED`, default `DRAFT`), `canvasJsonPath` reserved for the future canvas blob URL reference, timestamps, indexes on `ownerId` and `createdAt`) and `ProjectCollaborator` (`projectId` relation with `onDelete: Cascade`, `email`, `createdAt`, unique on `[projectId, email]`, indexes on `email` and `[projectId, createdAt]`). `prisma.config.ts` already pointed `schema` at the `prisma/` folder, so the multi-file schema (`schema.prisma` + `models/project.prisma`) needed no config changes.
+  - `lib/prisma.ts` — cached singleton exported as `prisma`. Branches on whether `DATABASE_URL` starts with `prisma+postgres://`: that path constructs `new PrismaClient({ accelerateUrl })`, otherwise `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })` (Prisma 7's `PrismaClientOptions` is a discriminated union — `accelerateUrl` and `adapter` are mutually exclusive). Cached on `globalThis` outside production so Next.js dev hot-reloads reuse one client instance.
+  - Ran `prisma migrate dev --name init` against the `DATABASE_URL` in `.env.local` (a pooled Prisma Postgres instance reached via the plain `postgres://` protocol, so it takes the `@prisma/adapter-pg` branch, not Accelerate) and `prisma generate`; client output goes to `app/generated/prisma` (already gitignored), generator `provider = "prisma-client"`.
+- **Architecture decisions**:
+  - `ownerId`/`email` are plain `String` fields, not foreign keys into a local `User` table — Clerk is the identity system of record (per `architecture-context.md`), so Prisma only stores the Clerk user ID/email, never user profile data.
+- **Session notes**: Verified `prisma validate`, `prisma migrate dev` (applied cleanly, no drift), `tsc --noEmit`, and `npm run build` all pass.
+
 ## Next Up
 
-- Wire real project persistence (API routes + Prisma) to replace the `use-project-dialogs` mock data layer, per `Authentication and Projects` in `context/project-overview.md`.
+- Build project API routes (`app/api`) on `lib/prisma.ts`: create/list/rename/delete with Clerk auth + ownership/collaborator checks per `Auth and Collaboration Model` in `context/architecture-context.md`.
+- Replace the `use-project-dialogs` mock data layer with calls to those routes, keeping the existing dialog/form/loading state shape in the hook.
 
 ## Open Questions
 
