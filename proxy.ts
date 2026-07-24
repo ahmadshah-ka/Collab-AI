@@ -1,8 +1,27 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 
+function normalizeRoute(value: string | undefined, fallback: string) {
+  const trimmedValue = value?.trim()
+
+  if (!trimmedValue) {
+    return fallback
+  }
+
+  const normalizedValue = trimmedValue.startsWith("/") ? trimmedValue : `/${trimmedValue}`
+  return normalizedValue === "/" ? "/" : normalizedValue.replace(/\/+$/, "")
+}
+
+function toRouteMatchers(route: string) {
+  if (route === "/") {
+    return ["/", "/:path*"]
+  }
+
+  return [route, `${route}/:path*`]
+}
+
 const isPublicRoute = createRouteMatcher([
-  `${process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL}(.*)`,
-  `${process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL}(.*)`,
+  ...toRouteMatchers(normalizeRoute(process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL, "/sign-in")),
+  ...toRouteMatchers(normalizeRoute(process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL, "/sign-up")),
 ])
 
 export default clerkMiddleware(async (auth, req) => {

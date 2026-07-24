@@ -8,5 +8,5 @@ export default async function Home() {
     redirect("/editor");
   }
 
-  redirect("/sign-in");
+  redirect(process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL ?? "/sign-in");
 }

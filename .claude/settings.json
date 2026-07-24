@@ -1,9 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add *)",
-      "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git status)",
+      "Bash(git diff --stat)",
+      "Bash(git log --oneline)"
     ]
   }
 }

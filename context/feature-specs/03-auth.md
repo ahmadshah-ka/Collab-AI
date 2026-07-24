@@ -41,7 +41,7 @@ Use existing Clerk env vars. Do not rename or invent new ones.
 
 ## Dependencies
 
-install: @clerk/ui.
+install: @clerk/nextjs, @clerk/ui.
 
 ## Check When Done
 
