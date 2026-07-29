@@ -17,7 +17,7 @@ export function ProjectDialogs() {
     dialog,
     name,
     setName,
-    slug,
+    roomId,
     error,
     clearError,
     isLoading,
@@ -60,7 +60,7 @@ export function ProjectDialogs() {
                 }}
                 placeholder="My project"
               />
-              <p className="text-xs text-copy-muted">{slug || "your-project-slug"}</p>
+              <p className="text-xs text-copy-muted">{roomId || "your-room-id"}</p>
               {error ? (
                 <p className="text-xs text-destructive" role="alert">
                   {error}

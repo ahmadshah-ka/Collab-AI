@@ -116,11 +116,13 @@ function ProjectList({
 
 export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
   const wasOpenRef = useRef(isOpen)
-  const { projects, openCreateDialog, openRenameDialog, openDeleteDialog } =
-    useProjectDialogsContext()
-
-  const ownedProjects = projects.filter((p) => p.role === "owner")
-  const sharedProjects = projects.filter((p) => p.role === "collaborator")
+  const {
+    ownedProjects,
+    sharedProjects,
+    openCreateDialog,
+    openRenameDialog,
+    openDeleteDialog,
+  } = useProjectDialogsContext()
 
   useEffect(() => {
     if (wasOpenRef.current && !isOpen) {
