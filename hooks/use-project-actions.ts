@@ -66,22 +66,28 @@ export function useProjectActions() {
     setError(null)
     setIsLoading(true)
 
-    const response = await fetch("/api/projects", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: `${slug}-${suffix}`, name: trimmed }),
-    })
+    try {
+      const response = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: `${slug}-${suffix}`, name: trimmed }),
+      })
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setError("Could not create project. Try again.")
+        setIsLoading(false)
+        return
+      }
+
+      const { project } = (await response.json()) as { project: Project }
+      setIsLoading(false)
+      closeDialog()
+      router.push(`/editor/${project.id}`)
+      router.refresh()
+    } catch {
       setError("Could not create project. Try again.")
       setIsLoading(false)
-      return
     }
-
-    const { project } = (await response.json()) as { project: Project }
-    setIsLoading(false)
-    closeDialog()
-    router.push(`/editor/${project.id}`)
   }, [name, suffix, closeDialog, router])
 
   const submitRename = useCallback(async () => {
@@ -92,21 +98,26 @@ export function useProjectActions() {
     setError(null)
     setIsLoading(true)
 
-    const response = await fetch(`/api/projects/${dialog.project.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: trimmed }),
-    })
+    try {
+      const response = await fetch(`/api/projects/${dialog.project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      })
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setError("Could not rename project. Try again.")
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(false)
+      closeDialog()
+      router.refresh()
+    } catch {
       setError("Could not rename project. Try again.")
       setIsLoading(false)
-      return
     }
-
-    setIsLoading(false)
-    closeDialog()
-    router.refresh()
   }, [dialog, name, closeDialog, router])
 
   const submitDelete = useCallback(async () => {
@@ -116,23 +127,28 @@ export function useProjectActions() {
     setError(null)
     setIsLoading(true)
 
-    const response = await fetch(`/api/projects/${project.id}`, {
-      method: "DELETE",
-    })
+    try {
+      const response = await fetch(`/api/projects/${project.id}`, {
+        method: "DELETE",
+      })
 
-    if (!response.ok) {
+      if (!response.ok) {
+        setError("Could not delete project. Try again.")
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(false)
+      closeDialog()
+
+      if (params.projectId === project.id) {
+        router.push("/editor")
+      } else {
+        router.refresh()
+      }
+    } catch {
       setError("Could not delete project. Try again.")
       setIsLoading(false)
-      return
-    }
-
-    setIsLoading(false)
-    closeDialog()
-
-    if (params.projectId === project.id) {
-      router.push("/editor")
-    } else {
-      router.refresh()
     }
   }, [dialog, params.projectId, closeDialog, router])
 

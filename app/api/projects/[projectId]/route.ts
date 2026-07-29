@@ -1,8 +1,15 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextRequest, NextResponse } from "next/server"
 
+import { Prisma } from "@/app/generated/prisma/client"
 import type { Project } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/prisma"
+
+function isRecordNotFoundError(err: unknown) {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025"
+  )
+}
 
 async function requireOwnedProject(
   projectId: string,
@@ -45,12 +52,19 @@ export async function PATCH(
     return NextResponse.json({ error: "Name is required" }, { status: 400 })
   }
 
-  const project = await prisma.project.update({
-    where: { id: projectId },
-    data: { name },
-  })
+  try {
+    const project = await prisma.project.update({
+      where: { id: projectId },
+      data: { name },
+    })
 
-  return NextResponse.json({ project })
+    return NextResponse.json({ project })
+  } catch (err) {
+    if (isRecordNotFoundError(err)) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+    throw err
+  }
 }
 
 export async function DELETE(
@@ -70,7 +84,14 @@ export async function DELETE(
     return owned
   }
 
-  await prisma.project.delete({ where: { id: projectId } })
+  try {
+    await prisma.project.delete({ where: { id: projectId } })
 
-  return new NextResponse(null, { status: 204 })
+    return new NextResponse(null, { status: 204 })
+  } catch (err) {
+    if (isRecordNotFoundError(err)) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 })
+    }
+    throw err
+  }
 }
