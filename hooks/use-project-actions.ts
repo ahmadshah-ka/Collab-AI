@@ -1,9 +1,9 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
+import { useParams, useRouter } from "next/navigation"
 
-import { MOCK_PROJECTS } from "@/lib/mock-projects"
-import { slugify } from "@/lib/utils"
+import { generateSuffix, slugify } from "@/lib/utils"
 import type { Project } from "@/types/project"
 
 type DialogState =
@@ -12,16 +12,13 @@ type DialogState =
   | { type: "delete"; project: Project }
   | null
 
-const MOCK_DELAY_MS = 400
+export function useProjectActions() {
+  const router = useRouter()
+  const params = useParams<{ projectId?: string }>()
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export function useProjectDialogs() {
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS)
   const [dialog, setDialog] = useState<DialogState>(null)
   const [name, setName] = useState("")
+  const [suffix, setSuffix] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -29,6 +26,7 @@ export function useProjectDialogs() {
 
   const openCreateDialog = useCallback(() => {
     setName("")
+    setSuffix(generateSuffix())
     setDialog({ type: "create" })
     setError(null)
   }, [])
@@ -50,6 +48,11 @@ export function useProjectDialogs() {
     setError(null)
   }, [])
 
+  const roomId = useMemo(() => {
+    const slug = slugify(name)
+    return slug ? `${slug}-${suffix}` : ""
+  }, [name, suffix])
+
   const submitCreate = useCallback(async () => {
     const trimmed = name.trim()
     if (!trimmed) return
@@ -62,56 +65,82 @@ export function useProjectDialogs() {
 
     setError(null)
     setIsLoading(true)
-    await wait(MOCK_DELAY_MS)
-    setProjects((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), name: trimmed, slug, role: "owner" },
-    ])
+
+    const response = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: `${slug}-${suffix}`, name: trimmed }),
+    })
+
+    if (!response.ok) {
+      setError("Could not create project. Try again.")
+      setIsLoading(false)
+      return
+    }
+
+    const { project } = (await response.json()) as { project: Project }
     setIsLoading(false)
     closeDialog()
-  }, [name, closeDialog])
+    router.push(`/editor/${project.id}`)
+  }, [name, suffix, closeDialog, router])
 
   const submitRename = useCallback(async () => {
     if (dialog?.type !== "rename") return
     const trimmed = name.trim()
     if (!trimmed) return
 
-    const slug = slugify(trimmed)
-    if (!slug) {
-      setError("Project name must include letters or numbers.")
+    setError(null)
+    setIsLoading(true)
+
+    const response = await fetch(`/api/projects/${dialog.project.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: trimmed }),
+    })
+
+    if (!response.ok) {
+      setError("Could not rename project. Try again.")
+      setIsLoading(false)
       return
     }
 
-    const { project } = dialog
-    setError(null)
-    setIsLoading(true)
-    await wait(MOCK_DELAY_MS)
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === project.id ? { ...p, name: trimmed, slug } : p
-      )
-    )
     setIsLoading(false)
     closeDialog()
-  }, [dialog, name, closeDialog])
+    router.refresh()
+  }, [dialog, name, closeDialog, router])
 
   const submitDelete = useCallback(async () => {
     if (dialog?.type !== "delete") return
     const { project } = dialog
 
+    setError(null)
     setIsLoading(true)
-    await wait(MOCK_DELAY_MS)
-    setProjects((prev) => prev.filter((p) => p.id !== project.id))
+
+    const response = await fetch(`/api/projects/${project.id}`, {
+      method: "DELETE",
+    })
+
+    if (!response.ok) {
+      setError("Could not delete project. Try again.")
+      setIsLoading(false)
+      return
+    }
+
     setIsLoading(false)
     closeDialog()
-  }, [dialog, closeDialog])
+
+    if (params.projectId === project.id) {
+      router.push("/editor")
+    } else {
+      router.refresh()
+    }
+  }, [dialog, params.projectId, closeDialog, router])
 
   return {
-    projects,
     dialog,
     name,
     setName,
-    slug: slugify(name),
+    roomId,
     error,
     clearError,
     isLoading,
@@ -125,4 +154,4 @@ export function useProjectDialogs() {
   }
 }
 
-export type UseProjectDialogsReturn = ReturnType<typeof useProjectDialogs>
+export type UseProjectActionsReturn = ReturnType<typeof useProjectActions>

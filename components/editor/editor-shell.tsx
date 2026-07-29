@@ -6,16 +6,26 @@ import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectDialogsProvider } from "@/components/editor/project-dialogs-context"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
+import type { Project } from "@/types/project"
 
 interface EditorShellProps {
   children: React.ReactNode
+  ownedProjects: Project[]
+  sharedProjects: Project[]
 }
 
-export function EditorShell({ children }: EditorShellProps) {
+export function EditorShell({
+  children,
+  ownedProjects,
+  sharedProjects,
+}: EditorShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   return (
-    <ProjectDialogsProvider>
+    <ProjectDialogsProvider
+      ownedProjects={ownedProjects}
+      sharedProjects={sharedProjects}
+    >
       <div className="flex h-screen flex-col bg-base">
         <EditorNavbar
           isSidebarOpen={isSidebarOpen}

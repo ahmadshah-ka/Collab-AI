@@ -3,18 +3,35 @@
 import { createContext, useContext } from "react"
 
 import {
-  useProjectDialogs,
-  type UseProjectDialogsReturn,
-} from "@/hooks/use-project-dialogs"
+  useProjectActions,
+  type UseProjectActionsReturn,
+} from "@/hooks/use-project-actions"
+import type { Project } from "@/types/project"
 
-const ProjectDialogsContext = createContext<UseProjectDialogsReturn | null>(null)
+interface ProjectDialogsContextValue extends UseProjectActionsReturn {
+  ownedProjects: Project[]
+  sharedProjects: Project[]
+}
+
+const ProjectDialogsContext =
+  createContext<ProjectDialogsContextValue | null>(null)
 
 export function ProjectDialogsProvider({
+  ownedProjects,
+  sharedProjects,
   children,
 }: {
+  ownedProjects: Project[]
+  sharedProjects: Project[]
   children: React.ReactNode
 }) {
-  const value = useProjectDialogs()
+  const actions = useProjectActions()
+  const value: ProjectDialogsContextValue = {
+    ...actions,
+    ownedProjects,
+    sharedProjects,
+  }
+
   return (
     <ProjectDialogsContext.Provider value={value}>
       {children}

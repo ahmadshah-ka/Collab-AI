@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Feature 05: Prisma Schema And Data Layer (context/feature-specs/05-prisma.md) — complete.
+- Feature 07: Wire Editor Home (context/feature-specs/07-wire-editor-home.md) — complete.
 
 ## Current Goal
 
-- Feature 05 is done. Next: build the project API routes (auth + ownership checks, CRUD) on top of `lib/prisma.ts`, then replace the `use-project-dialogs` mock data layer with real calls, per `Authentication and Projects` in `context/project-overview.md`.
+- Feature 07 is done. Next: build the real collaborative canvas workspace at `/editor/[projectId]` (currently a placeholder stub) — Liveblocks + React Flow, per `Collaborative Canvas` in `context/project-overview.md`.
 
 ## Features
 
@@ -96,14 +96,46 @@ Spec: `context/feature-specs/05-prisma.md` — complete.
   - `ownerId`/`email` are plain `String` fields, not foreign keys into a local `User` table — Clerk is the identity system of record (per `architecture-context.md`), so Prisma only stores the Clerk user ID/email, never user profile data.
 - **Session notes**: Verified `prisma validate`, `prisma migrate dev` (applied cleanly, no drift), `tsc --noEmit`, and `npm run build` all pass.
 
+### Feature 06 — Project APIs
+
+Spec: `context/feature-specs/06-project-apis.md` — complete.
+
+- **Completed**:
+  - `app/api/projects/route.ts` — `GET` lists the authenticated user's own projects (`ownerId` match, newest first); `POST` creates a project owned by the authenticated user, defaulting a missing/blank `name` to `"Untitled Project"`, relying on the schema's `cuid()` default for `id`.
+  - `app/api/projects/[projectId]/route.ts` — `PATCH` renames (400 if `name` is missing/blank after trim); `DELETE` removes the project. Both share a local `requireOwnedProject` helper: 404 if the project doesn't exist, 403 if the authenticated user isn't the owner.
+  - `proxy.ts` — added an `isApiRoute` matcher (`/api/(.*)`) so `/api` requests short-circuit to a JSON `401` when signed out, instead of falling through to `auth.protect()`'s sign-in redirect (which is correct for page routes but wrong for an API consumer). Route handlers still re-check `userId` themselves as defense in depth.
+- **Architecture decisions**:
+  - Listing is owner-only (`ownerId` match), not collaborator-inclusive — the spec says "list current user's projects" and only defines owner-based rules; `ProjectCollaborator` is keyed by `email`, not Clerk user ID, so resolving "projects I collaborate on" would require mapping the authenticated user to their Clerk email, which isn't specified here. Left as a gap for whenever collaborator-facing routes are actually specced, rather than invented now.
+  - No shared `lib/` module was added for the ownership check — it's two call sites in one file, factored into a local (non-exported) helper in `[projectId]/route.ts` rather than a new cross-file abstraction.
+- **Session notes**: Verified `tsc --noEmit`, `npm run lint`, and `npm run build` all pass (routes compile as dynamic: `ƒ /api/projects`, `ƒ /api/projects/[projectId]`). End-to-end verified against the running dev server using two real Clerk test users created/cleaned up via the Backend API (test-mode instance, `pk_test_...`) and Bearer session tokens: unauthenticated requests to all four handlers return `401`; create defaults the name and stamps the caller as `ownerId`; list is isolated per owner; non-owner `PATCH`/`DELETE` return `403`; owner `PATCH` returns `200` with the updated record, owner `DELETE` returns `204`; empty-name rename returns `400`; renaming/deleting a nonexistent or already-deleted project returns `404`. No UI wiring was touched, per the spec.
+
+### Feature 07 — Wire Editor Home
+
+Spec: `context/feature-specs/07-wire-editor-home.md` — complete.
+
+- **Completed**:
+  - `lib/projects.ts` (new) — the "project data helper" the spec refers to: `getOwnedProjects(userId)` and `getSharedProjects(email)`, both thin `prisma.project.findMany` wrappers. `app/api/projects/route.ts` `GET` now calls `getOwnedProjects` instead of querying inline.
+  - `app/editor/layout.tsx` — converted to an `async` Server Component: resolves `auth()` + `currentUser()`, calls both data-helper functions, and passes the two lists into `EditorShell` as `ownedProjects`/`sharedProjects` props. No client-side fetch anywhere in the initial load path.
+  - `hooks/use-project-actions.ts` (renamed from `use-project-dialogs.ts`, exported hook renamed `useProjectActions`) — owns only dialog state, the name input, and the three real mutations; it no longer owns the project list itself (see architecture decision below). Create generates a suffix (`generateSuffix()` in `lib/utils.ts`) once when the dialog opens, derives `roomId = slugify(name) + "-" + suffix`, POSTs `{ id: roomId, name }` to `/api/projects`, then `router.push` to the new workspace. Rename PATCHes then `router.refresh()`s. Delete DELETEs then either `router.push("/editor")` (if `useParams().projectId` matches the deleted project, i.e. you deleted the workspace you're standing in) or `router.refresh()` otherwise.
+  - `components/editor/project-dialogs-context.tsx` — `ProjectDialogsProvider` now takes `ownedProjects`/`sharedProjects` as props (from the layout) and merges them into the same context value as the `useProjectActions()` return, so the sidebar reads real data and the dialogs still trigger through one place.
+  - `components/editor/editor-shell.tsx`, `components/editor/project-sidebar.tsx` — updated to thread/consume `ownedProjects`/`sharedProjects` directly (no more client-side `.filter(p => p.role === ...)`, since the two lists now arrive pre-split from the server).
+  - `components/editor/project-dialogs.tsx` — Create dialog's live preview now shows the room ID (`roomId` from the hook) instead of a bare slug, per "create dialog shows room ID preview".
+  - `app/api/projects/route.ts` `POST` — accepts an optional `id` in the request body (validated against `/^[a-z0-9-]+$/`, 400 if invalid) and uses it as the Prisma-created project's id instead of the auto `cuid()`, so the client-generated room ID and the project's real database id are the same value; returns 409 on a `P2002` unique-constraint collision.
+  - `app/editor/[projectId]/page.tsx` (new) — minimal placeholder workspace route so "create navigates to workspace" is a real, working navigation target; Server Component, gates on owner or email-matched collaborator, `notFound()` otherwise.
+  - `types/project.ts` — now just re-exports Prisma's generated `Project` type; the old hand-rolled `{ id, name, slug, role }` mock shape and `lib/mock-projects.ts` were deleted (Prisma's `Project` has no `slug`/`role` columns — "owner" vs "shared" is now expressed by which list a project is in, not a field on the project).
+- **Architecture decisions**:
+  - Data fetching happens in `app/editor/layout.tsx`, not `app/editor/page.tsx`. The spec says "the editor home page is a server component... fetch... and pass both lists to the sidebar," but the sidebar is rendered by `EditorShell` at the layout level (a sibling of the page content, per the Feature 04 decision), not a child of `page.tsx` — a page cannot hand props to an ancestor layout's descendants. Fetching in the layout is also correct going forward: the same sidebar will need this data on the new `/editor/[projectId]` workspace route too, not just the home route, and layout-level fetching avoids a client-side hydration/flash step to get data from page to sidebar.
+  - `useProjectActions` deliberately does not hold the project list in state anymore (the old mock hook did). The list now lives entirely server-side and flows down as props/context; mutations call the API then `router.refresh()` (or `router.push`) to pull fresh server data, rather than hand-mutating a local copy. This matches the spec's explicit "refresh on success" / "redirect... otherwise refresh" wording and avoids a client/server state-sync class of bugs.
+  - `POST /api/projects` accepting a caller-supplied `id` is new surface not in the original Feature 06 spec, added because Feature 07 explicitly requires "the project ID and Liveblocks room ID should stay aligned" — Liveblocks itself isn't wired up yet (no dependency installed), so this only future-proofs the id; the actual room creation will happen when the Collaborative Canvas feature is built.
+- **Session notes**: Verified `tsc --noEmit`, `npm run lint`, and `npm run build` all pass (`/editor`, `/editor/[projectId]`, `/api/projects`, `/api/projects/[projectId]` all compile). Verified against the running dev server that unauthenticated requests to `/editor`, `/editor/[projectId]`, and `POST /api/projects` all correctly 307-redirect (pages) or 401 (API). End-to-end verified with a real Clerk test-mode user via an authenticated headless-browser session (sign-in token flow, not just Bearer API calls): empty-state sidebar renders correctly; Create dialog's room-id preview updates live and the create flow reaches the new workspace page; Rename updates the sidebar immediately; Delete-while-on-own-workspace redirects to `/editor`; invalid/duplicate `id` on `POST /api/projects` correctly returns 400/409. This surfaced one real bug: `submitCreate` only called `router.push()`, so the sidebar still showed the stale (empty) list immediately after create until a manual reload, since Next.js's client router cache didn't know to refetch the layout — fixed by also calling `router.refresh()` right after the push, matching the pattern already used in rename/delete. Re-ran `tsc`/`lint` clean after the fix. Test Clerk users and orphaned test `Project` rows were cleaned up after verification; no test-script artifacts left in the repo.
+
 ## Next Up
 
-- Build project API routes (`app/api`) on `lib/prisma.ts`: create/list/rename/delete with Clerk auth + ownership/collaborator checks per `Auth and Collaboration Model` in `context/architecture-context.md`.
-- Replace the `use-project-dialogs` mock data layer with calls to those routes, keeping the existing dialog/form/loading state shape in the hook.
+- Build the real `/editor/[projectId]` canvas workspace (Liveblocks + React Flow), replacing the current placeholder page.
 
 ## Open Questions
 
-- Add unresolved product or implementation questions here.
+- Clicking an existing project row in the sidebar does not yet navigate to its workspace (`/editor/[projectId]`) — only "create" does. "Selecting a project" is part of the core user flow in `project-overview.md` but wasn't in this feature's "Check When Done" list, so it wasn't added here to avoid inventing unspecified behavior. Needs a spec before implementing.
 
 ## Architecture Decisions
 
