@@ -6,6 +6,9 @@ import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectDialogsProvider } from "@/components/editor/project-dialogs-context"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
+import { ShareDialog } from "@/components/editor/share-dialog"
+import { ShareDialogProvider } from "@/components/editor/share-dialog-context"
+import { WorkspaceUiProvider } from "@/components/editor/workspace-ui-context"
 import type { Project } from "@/types/project"
 
 interface EditorShellProps {
@@ -26,18 +29,25 @@ export function EditorShell({
       ownedProjects={ownedProjects}
       sharedProjects={sharedProjects}
     >
-      <div className="flex h-screen flex-col bg-base">
-        <EditorNavbar
-          isSidebarOpen={isSidebarOpen}
-          onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
-        />
-        <ProjectSidebar
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-        />
-        <main className="flex-1 overflow-hidden">{children}</main>
-        <ProjectDialogs />
-      </div>
+      <ShareDialogProvider>
+        <WorkspaceUiProvider>
+          <div className="flex h-screen flex-col bg-base">
+            <EditorNavbar
+              isSidebarOpen={isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
+            />
+            <div className="relative flex flex-1 gap-3 overflow-hidden p-4">
+              <ProjectSidebar
+                isOpen={isSidebarOpen}
+                onClose={() => setIsSidebarOpen(false)}
+              />
+              <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
+            </div>
+            <ProjectDialogs />
+            <ShareDialog />
+          </div>
+        </WorkspaceUiProvider>
+      </ShareDialogProvider>
     </ProjectDialogsProvider>
   )
 }

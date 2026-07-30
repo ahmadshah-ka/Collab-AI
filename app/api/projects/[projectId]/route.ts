@@ -1,15 +1,8 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextRequest, NextResponse } from "next/server"
 
-import { Prisma } from "@/app/generated/prisma/client"
-import type { Project } from "@/app/generated/prisma/client"
+import { Prisma, type Project } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/prisma"
-
-function isRecordNotFoundError(err: unknown) {
-  return (
-    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025"
-  )
-}
 
 async function requireOwnedProject(
   projectId: string,
@@ -52,19 +45,27 @@ export async function PATCH(
     return NextResponse.json({ error: "Name is required" }, { status: 400 })
   }
 
-  try {
-    const project = await prisma.project.update({
-      where: { id: projectId },
+  const project = await prisma.project
+    .update({
+      where: { id: projectId, ownerId: userId },
       data: { name },
     })
+    .catch((err) => {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        return null
+      }
 
-    return NextResponse.json({ project })
-  } catch (err) {
-    if (isRecordNotFoundError(err)) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 })
-    }
-    throw err
+      throw err
+    })
+
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 })
   }
+
+  return NextResponse.json({ project })
 }
 
 export async function DELETE(
@@ -84,14 +85,13 @@ export async function DELETE(
     return owned
   }
 
-  try {
-    await prisma.project.delete({ where: { id: projectId } })
+  const { count } = await prisma.project.deleteMany({
+    where: { id: projectId, ownerId: userId },
+  })
 
-    return new NextResponse(null, { status: 204 })
-  } catch (err) {
-    if (isRecordNotFoundError(err)) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 })
-    }
-    throw err
+  if (count === 0) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 })
   }
+
+  return new NextResponse(null, { status: 204 })
 }

@@ -89,14 +89,20 @@ Small white circular handles, hidden by default, revealed on node hover. Appear 
 
 React Flow `<Background>` component. Canvas sits on the base background color.
 
+## Content Patterns
+
+- **Eyebrow label**: small caps label above a heading — `text-xs font-medium uppercase tracking-[0.2em] text-copy-faint` (a tighter `tracking-[0.15em]` variant is used for compact card labels).
+- **Icon badge**: circular or rounded-square icon container for empty/placeholder states — brand-tinted (`rounded-full border border-brand/40 bg-accent-dim`) for primary emphasis, or accent-tinted (`rounded-lg bg-ai/15 text-ai-text`) for AI-related content.
+- **Dashed callout card**: `rounded-xl border border-dashed border-surface-border p-3` — used for "coming later" / roadmap-style notes distinct from the solid `Card` component.
+
 ## Component Library
 
 shadcn/ui on top of Tailwind. No custom design system. Components live in `components/ui/`. Use the `shadcn` CLI to add new components rather than writing them from scratch.
 
 ## Layout Patterns
 
-- Editor workspace: full-viewport layout — floating sidebar overlay on the left, center canvas, slide-over AI sidebar on the right.
-- Sidebars: floating overlay with dark semi-transparent background and subtle border.
+- Editor workspace: full-viewport layout — desktop uses a shared row of rounded panels (project sidebar, expanding center canvas, AI sidebar); mobile keeps the project sidebar as an overlay. When either sidebar is toggled off, the center canvas expands into the freed space.
+- Sidebars: desktop sidebars are rounded bordered workspace panels; mobile sidebars use a dark floating overlay with subtle border.
 - Modals and dialogs: centered overlay, `rounded-3xl`, dark background with backdrop blur.
 - Navbar: top bar with dark background and bottom border.
 

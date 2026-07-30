@@ -14,7 +14,7 @@ type DialogState =
 
 export function useProjectActions() {
   const router = useRouter()
-  const params = useParams<{ projectId?: string }>()
+  const params = useParams<{ roomId?: string }>()
 
   const [dialog, setDialog] = useState<DialogState>(null)
   const [name, setName] = useState("")
@@ -141,7 +141,7 @@ export function useProjectActions() {
       setIsLoading(false)
       closeDialog()
 
-      if (params.projectId === project.id) {
+      if (params.roomId === project.id) {
         router.push("/editor")
       } else {
         router.refresh()
@@ -150,7 +150,7 @@ export function useProjectActions() {
       setError("Could not delete project. Try again.")
       setIsLoading(false)
     }
-  }, [dialog, params.projectId, closeDialog, router])
+  }, [dialog, params.roomId, closeDialog, router])
 
   return {
     dialog,

@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Feature 07: Wire Editor Home (context/feature-specs/07-wire-editor-home.md) — complete.
+- Feature 09: Share Dialog (context/feature-specs/09-share-dialog.md) — complete.
 
 ## Current Goal
 
-- Feature 07 is done. Next: build the real collaborative canvas workspace at `/editor/[projectId]` (currently a placeholder stub) — Liveblocks + React Flow, per `Collaborative Canvas` in `context/project-overview.md`.
+- Feature 09 is done. Next: build the real collaborative canvas (Liveblocks + React Flow) inside the `WorkspaceCanvas` placeholder at `/editor/[roomId]`, per `Collaborative Canvas` in `context/project-overview.md`.
 
 ## Features
 
@@ -129,13 +129,58 @@ Spec: `context/feature-specs/07-wire-editor-home.md` — complete.
   - `POST /api/projects` accepting a caller-supplied `id` is new surface not in the original Feature 06 spec, added because Feature 07 explicitly requires "the project ID and Liveblocks room ID should stay aligned" — Liveblocks itself isn't wired up yet (no dependency installed), so this only future-proofs the id; the actual room creation will happen when the Collaborative Canvas feature is built.
 - **Session notes**: Verified `tsc --noEmit`, `npm run lint`, and `npm run build` all pass (`/editor`, `/editor/[projectId]`, `/api/projects`, `/api/projects/[projectId]` all compile). Verified against the running dev server that unauthenticated requests to `/editor`, `/editor/[projectId]`, and `POST /api/projects` all correctly 307-redirect (pages) or 401 (API). End-to-end verified with a real Clerk test-mode user via an authenticated headless-browser session (sign-in token flow, not just Bearer API calls): empty-state sidebar renders correctly; Create dialog's room-id preview updates live and the create flow reaches the new workspace page; Rename updates the sidebar immediately; Delete-while-on-own-workspace redirects to `/editor`; invalid/duplicate `id` on `POST /api/projects` correctly returns 400/409. This surfaced one real bug: `submitCreate` only called `router.push()`, so the sidebar still showed the stale (empty) list immediately after create until a manual reload, since Next.js's client router cache didn't know to refetch the layout — fixed by also calling `router.refresh()` right after the push, matching the pattern already used in rename/delete. Re-ran `tsc`/`lint` clean after the fix. Test Clerk users and orphaned test `Project` rows were cleaned up after verification; no test-script artifacts left in the repo.
 
+### Feature 08 — Editor Workspace Shell
+
+Spec: `context/feature-specs/08-editor-workspace-shell.md` — complete.
+
+- **Completed**:
+  - `app/editor/[projectId]/page.tsx` → renamed to `app/editor/[roomId]/page.tsx` (route param renamed to match the spec; the project id and Liveblocks room id are the same value per Feature 07). Server Component: resolves identity, redirects unauthenticated users to `/sign-in`, renders `AccessDenied` for a missing/unauthorized project, otherwise renders `WorkspaceCanvas`.
+  - `lib/project-access.ts` (new) — the access helper the spec calls for: `getCurrentIdentity()` (Clerk `userId` + primary email) and `getAccessibleProject(projectId, identity)` (owner-or-collaborator check via Prisma, returns `null` for both "not found" and "no access" so the page can't distinguish the two — matching the spec's identical `AccessDenied` treatment for each).
+  - `components/editor/access-denied.tsx` (new) — centered layout, lock icon, short message, link back to `/editor`.
+  - `components/editor/workspace-ui-context.tsx` (new) — `WorkspaceUiProvider`/`useWorkspaceUiContext`, owns only the AI-sidebar-open boolean (defaults open) and its toggle. Mounted once in `EditorShell` (wrapping navbar + sidebar + main), so the navbar's toggle button and the workspace page's right-panel placeholder — siblings under `EditorShell`, same relationship as the existing `ProjectDialogsContext` — can share the same state.
+  - `components/editor/workspace-canvas.tsx` (new) — the workspace page's content: central canvas placeholder (icon badge, "Workspace Shell" eyebrow label, heading, description, faint grid + radial-glow background, `bg-base`, fills remaining space) plus a right "AI Copilot" placeholder panel (a `Card` "chat surface pending" note and a dashed "future hooks" callout) whose width/visibility is driven by `useWorkspaceUiContext()`.
+  - `components/editor/editor-navbar.tsx` — now reads `useParams<{ roomId? }>()` and looks the id up in `ProjectDialogsContext`'s `ownedProjects`/`sharedProjects` (already fetched for the sidebar) to resolve the current project's name; when a `roomId` is present it renders a name/"Workspace" subtitle block left-aligned next to the sidebar toggle, and adds a rounded-full Share button + AI-sidebar-toggle button (default-variant/teal when open, outline when closed) before `UserButton`. On `/editor` (no `roomId`) the navbar is unchanged from Feature 02/03.
+  - `components/editor/project-sidebar.tsx` — reads the same `roomId` param and highlights the matching row (accent dot, `bg-accent-dim`, `text-copy-primary`/`font-medium`) in both the owned and shared lists. Project rows are now `next/link`s to `/editor/{project.id}` (previously inert `<div>`s — clicking a project didn't navigate anywhere, a gap surfaced during manual testing, not called out in the spec's own checklist but clearly required by the core user flow in `project-overview.md`); on narrow viewports (`<1024px`) clicking a row also closes the sidebar, matching the existing mobile backdrop-scrim behavior.
+  - `components/editor/editor-shell.tsx` — wraps its content in the new `WorkspaceUiProvider`.
+  - `hooks/use-project-actions.ts` — `useParams<{ projectId? }>()` → `useParams<{ roomId? }>()` to match the renamed route segment (used for the "delete the workspace you're standing in" redirect check).
+  - `context/ui-context.md` — added a "Content Patterns" section documenting the eyebrow-label, icon-badge, and dashed-callout-card conventions introduced by the workspace placeholder, so later features reuse them instead of re-inventing similar treatments.
+- **Architecture decisions**:
+  - The workspace-specific navbar content (project name, Share, AI toggle) was added to the existing shared `EditorNavbar` rather than building a second navbar for the workspace route — `EditorShell`'s navbar is a sibling of the routed page content (not an ancestor/descendant), so a page-owned navbar can't reach it without prop-drilling through the shared layout. The navbar reads route/context state itself (`useParams` + the already-fetched project lists) instead of the page passing data upward.
+  - `getAccessibleProject` deliberately returns `Project | null` with no reason code — the spec shows the same `AccessDenied` UI for "not found" and "no access", so there was nothing for a reason code to drive.
+  - The visual design (pill-shaped nav actions, icon-badge canvas placeholder, card-based AI panel) goes beyond the spec's bare "centered message" placeholder wording. The user asked mid-implementation for the workspace shell to closely match a reference screenshot (a frame from an external coding-tutorial video); asked to confirm fidelity level before a full restyle, and "match it closely" was chosen, so the layout/structure from that reference was adopted with the app's own tokens (no colors/copy were pulled from `components/ui/*` foundation files).
+- **Session notes**:
+  - Verified `tsc --noEmit`, `npm run lint`, and `npm run build` all pass (`/editor/[roomId]` compiles as a dynamic route).
+  - End-to-end verified against a live dev server with a real Clerk test-mode user (created/cleaned up via the Backend API, signed in through a sign-in-ticket flow, not just Bearer calls, via a temporary `puppeteer-core` script removed after use): `/editor` home navbar has no project name/Share/AI-toggle; creating a project navigates to `/editor/[roomId]` and the navbar shows the project name, Share button, and AI-sidebar toggle; the sidebar highlights the active room and clicking a different project row navigates to its workspace; the AI toggle opens/closes the right placeholder panel; visiting a nonexistent project id renders `AccessDenied` (lock icon, message, link back to `/editor`). Zero console errors. `getAccessibleProject` has one shared `if (!project) return <AccessDenied />` path for both "not found" and "no access", so verifying the not-found case exercises the same code as the no-access case. Test project and Clerk user were deleted after verification via the app's own `DELETE /api/projects/[id]` route and the Clerk Backend API.
+  - Mid-session, unrelated concurrent edits to `context/progress-tracker.md` and `app/api/projects/route.ts` (a `revalidatePath` call paired with dropping `submitCreate`'s `router.refresh()`) appeared from what looked like another session working the same spec; the `revalidatePath` addition was unreviewed and unverified so it was reverted along with the paired `router.refresh()` removal, keeping Feature 07's original create-flow fix intact.
+  - Follow-up visual polish: owned project rows now show inline rename/delete icon buttons instead of a hidden overflow menu. On small screens, only the active project row shows those icons; on larger screens, owned project rows show them inline like the reference. Re-verified `tsc --noEmit` and `npm run lint`.
+  - Follow-up layout polish: the editor content area now uses a desktop flex row of matching rounded-3xl bordered panels for the project sidebar, canvas, and AI sidebar. Closing the project sidebar or AI sidebar removes that column so the canvas expands instead of staying fixed. Mobile keeps the project sidebar as an overlay. Updated `context/ui-context.md`; re-verified `tsc --noEmit` and `npm run lint`.
+
+### Feature 09 — Share Dialog
+
+Spec: `context/feature-specs/09-share-dialog.md` — complete.
+
+- **Completed**:
+  - `app/api/projects/[projectId]/collaborators/route.ts` — added authenticated `GET`/`POST` handlers. Owners and existing collaborators can list collaborators; only owners can invite collaborators by email. Input is validated before writes, duplicate invites return `409`, and inviting the owner's own primary email returns `400`.
+  - `app/api/projects/[projectId]/collaborators/[collaboratorId]/route.ts` — added owner-only collaborator removal. Deletes are scoped by both `projectId` and `collaboratorId`, returning `404` if the collaborator is not attached to that project.
+  - `lib/collaborators.ts` — added Clerk Backend SDK enrichment for collaborator emails using `clerkClient().users.getUserList({ emailAddress })`; collaborator records remain email-only in Prisma, and display name/avatar are transient response data. Unknown Clerk users fall back to email-only display.
+  - `components/editor/share-dialog-context.tsx` + `components/editor/share-dialog.tsx` — added a workspace-scoped share dialog. Owners can invite, remove, view collaborators, and copy the project link with temporary `Copied!` feedback. Collaborators can open the same dialog in read-only mode and view the collaborator list only.
+  - `components/editor/editor-navbar.tsx` + `components/editor/editor-shell.tsx` — wired the existing workspace Share button to open the dialog and mounted the dialog once inside the editor shell.
+- **Architecture decisions**:
+  - No local user table was added. The database remains the source of access membership by collaborator email, while Clerk is used only to enrich known users at response time.
+  - Invite/remove endpoints call `revalidatePath("/editor", "layout")` after successful writes so newly shared projects can appear or disappear from the server-fetched editor sidebar on the next navigation/refresh.
+- **Session notes**: Verified `tsc --noEmit`, `npm run lint`, and `npm run build` all pass. Build output includes `/api/projects/[projectId]/collaborators` and `/api/projects/[projectId]/collaborators/[collaboratorId]` as dynamic routes. No authenticated browser run was performed in this session, so the verification here is static/build-level plus server-side type coverage.
+  - Follow-up alignment with reference screenshot: the share dialog now labels the access section "People with access", includes the project creator as the first row, enriches the creator from Clerk by `Project.ownerId`, and shows an `Owner` badge. The total count now includes both owner and collaborators. Re-verified `tsc --noEmit`, `npm run lint`, and `npm run build`.
+  - Follow-up visual polish: collaborator rows now show a `Collaborator` role badge beside the collaborator name, matching the same access-list treatment as the owner row. Re-verified `tsc --noEmit` and `npm run lint`.
+  - Follow-up access/API hardening: project rename now uses one Prisma `update` result and only maps `P2025` to `404`; collaborator Clerk enrichment uses a named 100-email batch size; project access now skips collaborator lookup entirely when the current identity has no email while still normalizing email before exact comparison. Re-verified `tsc --noEmit` and `npm run lint`.
+  - Follow-up share-dialog hardening: collaborator loads now ignore stale responses for previously selected projects, the people-with-access empty state distinguishes loading from completed empty/error states, and missing Clerk owner records fall back to a safe owner row instead of failing the collaborators endpoint. Re-verified `tsc --noEmit` and `npm run lint`.
+
 ## Next Up
 
-- Build the real `/editor/[projectId]` canvas workspace (Liveblocks + React Flow), replacing the current placeholder page.
+- Build the real collaborative canvas (Liveblocks + React Flow) inside `WorkspaceCanvas` at `/editor/[roomId]`, replacing the current placeholder content.
 
 ## Open Questions
 
-- Clicking an existing project row in the sidebar does not yet navigate to its workspace (`/editor/[projectId]`) — only "create" does. "Selecting a project" is part of the core user flow in `project-overview.md` but wasn't in this feature's "Check When Done" list, so it wasn't added here to avoid inventing unspecified behavior. Needs a spec before implementing.
+- None open for this feature — the sidebar's "click a project row to open its workspace" gap (previously listed here) was fixed as part of Feature 08.
 
 ## Architecture Decisions
 
