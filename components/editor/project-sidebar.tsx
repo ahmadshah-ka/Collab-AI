@@ -174,8 +174,8 @@ export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
         inert={!isOpen}
         aria-hidden={!isOpen}
         className={cn(
-          "fixed top-[4.5rem] bottom-4 left-4 z-40 flex w-80 flex-col rounded-3xl border border-surface-border bg-surface/95 shadow-2xl backdrop-blur-sm transition-transform duration-200 ease-in-out lg:static lg:z-auto lg:h-full lg:shrink-0 lg:translate-x-0 lg:shadow-none",
-          isOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)] lg:hidden"
+          "fixed top-[4.5rem] bottom-4 left-4 z-40 flex w-80 flex-col overflow-hidden rounded-3xl border border-surface-border bg-surface/95 shadow-2xl backdrop-blur-sm transition-transform duration-200 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-[calc(100%+5rem)]"
         )}
       >
         <div className="flex items-center justify-between border-b border-surface-border px-4 py-3">

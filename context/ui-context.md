@@ -101,8 +101,8 @@ shadcn/ui on top of Tailwind. No custom design system. Components live in `compo
 
 ## Layout Patterns
 
-- Editor workspace: full-viewport layout — desktop uses a shared row of rounded panels (project sidebar, expanding center canvas, AI sidebar); mobile keeps the project sidebar as an overlay. When either sidebar is toggled off, the center canvas expands into the freed space.
-- Sidebars: desktop sidebars are rounded bordered workspace panels; mobile sidebars use a dark floating overlay with subtle border.
+- Editor workspace: the canvas is full-bleed underneath the navbar — no padding, border, radius, or shadow around it — so its dotted background fills the entire viewport edge-to-edge, feeling like an infinite design canvas (Figma/Excalidraw-style) rather than a card.
+- Sidebars (project sidebar, left; AI sidebar, right): always `position: fixed`, floating over the canvas at every breakpoint — never part of the flex layout, so they never push or shrink it. Rounded, bordered, semi-transparent (`bg-surface/95` + `backdrop-blur-sm`) panels with `shadow-2xl` to read as elevated above the canvas. Toggled via a `translate-x` transition; the closed-state offset must clear the panel's own shadow blur (not just its box), or the shadow peeks back into view.
 - Modals and dialogs: centered overlay, `rounded-3xl`, dark background with backdrop blur.
 - Navbar: top bar with dark background and bottom border.
 

@@ -36,12 +36,12 @@ export function EditorShell({
               isSidebarOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
             />
-            <div className="relative flex flex-1 gap-3 overflow-hidden p-4">
+            <div className="relative flex-1 overflow-hidden">
               <ProjectSidebar
                 isOpen={isSidebarOpen}
                 onClose={() => setIsSidebarOpen(false)}
               />
-              <main className="min-w-0 flex-1 overflow-hidden">{children}</main>
+              <main className="h-full w-full">{children}</main>
             </div>
             <ProjectDialogs />
             <ShareDialog />

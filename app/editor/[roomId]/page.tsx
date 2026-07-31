@@ -22,5 +22,5 @@ export default async function WorkspacePage({
     return <AccessDenied />
   }
 
-  return <WorkspaceCanvas />
+  return <WorkspaceCanvas roomId={roomId} />
 }

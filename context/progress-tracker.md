@@ -4,11 +4,13 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Feature 09: Share Dialog (context/feature-specs/09-share-dialog.md) — complete.
+- Feature 10: Liveblocks Setup (context/feature-specs/10-liveblocks-setup.md) — complete; the user has since supplied a real `LIVEBLOCKS_SECRET_KEY` and `npm run build` passes end to end.
+- Feature 11: Base Canvas (context/feature-specs/11-base-canvas.md) — complete.
+- Feature 12: Shape Panel (context/feature-specs/12-shape-panel.md) — complete.
 
 ## Current Goal
 
-- Feature 09 is done. Next: build the real collaborative canvas (Liveblocks + React Flow) inside the `WorkspaceCanvas` placeholder at `/editor/[roomId]`, per `Collaborative Canvas` in `context/project-overview.md`.
+- The canvas now supports creating nodes by dragging shapes from a bottom toolbar. Next: a real per-shape visual renderer (the six `NodeShape` outlines, per `ui-context.md`) and node color/label editing — neither exists yet since Feature 12 only delivers the placeholder bordered-rectangle renderer.
 
 ## Features
 
@@ -174,13 +176,81 @@ Spec: `context/feature-specs/09-share-dialog.md` — complete.
   - Follow-up access/API hardening: project rename now uses one Prisma `update` result and only maps `P2025` to `404`; collaborator Clerk enrichment uses a named 100-email batch size; project access now skips collaborator lookup entirely when the current identity has no email while still normalizing email before exact comparison. Re-verified `tsc --noEmit` and `npm run lint`.
   - Follow-up share-dialog hardening: collaborator loads now ignore stale responses for previously selected projects, the people-with-access empty state distinguishes loading from completed empty/error states, and missing Clerk owner records fall back to a safe owner row instead of failing the collaborators endpoint. Re-verified `tsc --noEmit` and `npm run lint`.
 
+### Feature 10 — Liveblocks Setup
+
+Spec: `context/feature-specs/10-liveblocks-setup.md` — complete.
+
+- **Completed**:
+  - `liveblocks.config.ts` — `Presence` typed with `cursor: { x: number; y: number } | null` and `isThinking: boolean`; `UserMeta.info` typed with `name`, `avatar`, `color`. The unrelated pre-existing `Storage`/`RoomEvent`/`ThreadMetadata`/`RoomInfo` placeholder fields (out of this spec's scope) were changed from `{}` to `Record<string, never>` only because the bare `{}` type fails the repo's `@typescript-eslint/no-empty-object-type` lint rule and `npm run lint` needed to stay clean; no behavior change.
+  - `lib/liveblocks.ts` (new) — cached `Liveblocks` node client (`liveblocks`), following the same `globalThis`-cached-singleton pattern as `lib/prisma.ts` so dev hot-reloads reuse one instance; throws if `LIVEBLOCKS_SECRET_KEY` is unset. Also exports `getCursorColorForUser(userId)`, a deterministic string-hash → fixed 8-color palette mapper.
+  - `app/api/liveblocks-auth/route.ts` (new) — `POST` handler: 401 if unauthenticated (Clerk `auth()`), reads `room` from the request body (the Liveblocks client's own `authEndpoint` request shape is `{ room: roomId }`), verifies access via the existing `getAccessibleProject` helper (project id === Liveblocks room id, per the spec), 403 if not owner/collaborator, `liveblocks.getOrCreateRoom(roomId, { defaultAccesses: ["room:write"] })` to ensure the room exists without recreating/overwriting it, then `liveblocks.identifyUser(userId, { userInfo: { name, avatar, color } })` (ID token auth) and returns its `{ status, body }` directly.
+  - `lib/collaborators.ts` — `getDisplayName` changed from a local to an exported helper so the auth route reuses the same Clerk full-name/first-last/username fallback chain instead of duplicating it.
+  - `.env.local` — added an empty `LIVEBLOCKS_SECRET_KEY=` entry.
+- **Architecture decisions**:
+  - Room permissions use `defaultAccesses: ["room:write"]` (room-open) rather than per-user `usersAccesses`. Since `getOrCreateRoom` only applies its `params` the first time a room is created and never updates permissions on existing rooms, granting access per-user at issuance time wouldn't extend to collaborators added after the room already exists. The real authorization gate is `getAccessibleProject` in the auth route itself — a token is only ever issued to an owner/collaborator — so the room's own permission can stay open without weakening access control.
+  - No `usersAccesses`/`groupsAccesses` or Liveblocks Permissions API integration was added — not called for by the spec, and the auth-route-level check is sufficient for the current owner/collaborator model.
+- **Session notes**:
+  - `@liveblocks/node` was not actually installed despite the spec stating "all required Liveblocks packages are already installed" (`package.json` only had `@liveblocks/client`, `@liveblocks/react`, `@liveblocks/react-flow`, `@liveblocks/react-ui`) — installed it via `npm install @liveblocks/node`, required for `Liveblocks`/`identifyUser`/`getOrCreateRoom` in the auth route.
+  - `identifyUser`'s first argument must be either a plain `userId` string or a full `{ userId, groupIds, ... }` `Identity` object (`groupIds` is required on the object form in this SDK version) — passed the plain string form since groups aren't used.
+  - Verified `tsc --noEmit` and `npm run lint` clean. `npm run build` initially failed as shipped because `LIVEBLOCKS_SECRET_KEY` had no real value (`lib/liveblocks.ts` throws at module load, and Next.js evaluates route modules during build-time page-data collection) — confirmed the rest of the build was otherwise clean by temporarily setting a placeholder key value locally, then reverted `.env.local` back to empty. The user then supplied a real `LIVEBLOCKS_SECRET_KEY` (and a `LIVEBLOCKS_PUBLIC_KEY`, currently unused — this feature authenticates via `authEndpoint`/ID tokens, not `publicApiKey`, so no client-side key is needed yet) and `npm run build` was re-run and passes end to end with the real key.
+
+### Feature 11 — Base Canvas
+
+Spec: `context/feature-specs/11-base-canvas.md` — complete.
+
+- **Completed**:
+  - `components/editor/collab-canvas.tsx` (client) — `useLiveblocksFlow<CanvasNode, CanvasEdge>({ suspense: true })` from `@liveblocks/react-flow` driving `<ReactFlow>` from `@xyflow/react`, starting with empty `nodes`/`edges`. Renders React Flow's `<Background variant={BackgroundVariant.Dots}>` (per `ui-context.md`'s "Canvas Background" section) and the package's built-in `<Cursors />` overlay for live multiplayer cursors. `defaultEdgeOptions` applies the documented edge style (`smoothstep`, `#f8fafc` stroke, arrow marker) without building a full custom edge component. `connectionMode={ConnectionMode.Loose}` enables loose connection behavior (handles can act as both source and target). `colorMode="dark"` matches the app's dark-only theme, `fitView` is set. `<MiniMap>` (bottom-right, `pannable`/`zoomable`) is styled with the app's `bg-surface`/`border-surface-border` tokens instead of xyflow's default light styling. Imports the required Liveblocks/React Flow stylesheets, including the `dark/attributes.css` variant (the app always has `.dark` on `<html>`, per Feature 01).
+  - `components/editor/workspace-canvas.tsx` — client wrapper taking a `roomId` prop, wraps its content in `LiveblocksProvider authEndpoint="/api/liveblocks-auth"` → `RoomProvider id={roomId} initialPresence={{ cursor: null, isThinking: false }}`, then `ErrorBoundary` (from `react-error-boundary`) wrapping `ClientSideSuspense` (simple "Loading canvas…" fallback) wrapping `<CollabCanvas />`, per the `rendering-loading-components`/`rendering-error-components` Liveblocks guidance. The AI Copilot placeholder panel alongside it is unchanged.
+  - `app/editor/[roomId]/page.tsx` — stays a Server Component; resolves identity and access via `getAccessibleProject` before rendering `<WorkspaceCanvas roomId={roomId} />`.
+  - `types/canvas.ts` (new) — shared canvas types per the spec: `NodeShape` (the 6 shapes named in `ui-context.md`), `CanvasNodeData` (`label`, `color`, `shape`, with a `Record<string, unknown>` index signature so it satisfies `@xyflow/react`'s `Node<NodeData>` generic constraint), and the custom `CanvasNode`/`CanvasEdge` React Flow types (`Node<CanvasNodeData, "canvasNode">` / `Edge<Record<string, unknown>, "canvasEdge">`). `collab-canvas.tsx` passes these as the `useLiveblocksFlow` type parameters so `nodes`/`edges` are typed through React Flow, without registering any `nodeTypes`/`canvasNode` renderer yet (out of this feature's scope).
+  - `package.json` — `react-error-boundary` (added for the error-fallback requirement).
+- **Explicitly out of scope for this pass** (per the spec's own scope limits, and deferred to `context/feature-specs/12-shape-panel.md`):
+  - `<Controls>`.
+  - A renderer/component for the `canvasNode`/`canvasEdge` types — only the shared type definitions exist; React Flow currently renders any (still-empty) nodes/edges with its defaults.
+  - Persistence logic and AI behavior.
+  - The full `NODE_COLORS` (8 pairs)/hover-revealed-handles visual system from `ui-context.md` — `types/canvas.ts` only defines what this spec asked for (`label`/`color`/`shape` typing), not the color palette constant; that can be added alongside Feature 12's node renderer if needed.
+- **Session notes**:
+  - `tsc --noEmit`, `npm run lint`, and `npm run build` all pass (`/editor/[roomId]` still compiles; no new routes).
+  - Runtime-verified previously (before this spec file existed, under the same underlying implementation): the user's own browser screenshot of a real workspace (`/editor/liveblocks-live-room-tr52`) showed the canvas rendering with the dotted `Background` and the "Powered by Liveblocks" badge, confirming the auth route, room creation, and Liveblocks connection all work end to end. The `connectionMode`/`BackgroundVariant.Dots`/`types/canvas.ts` additions in this session are type-level and prop-level wiring on top of that already-working canvas, verified via `tsc`/`lint`/`build` only (not re-screenshotted).
+
+### Feature 12 — Shape Panel
+
+Spec: `context/feature-specs/12-shape-panel.md` — complete.
+
+- **Completed**:
+  - `types/canvas.ts` — added `NODE_SHAPES` (the 6 shapes, ordered per `ui-context.md`), `DEFAULT_NODE_COLOR` (`#1F1F1F`, the documented default node fill), `SHAPE_DEFAULT_SIZES` (a sensible `{ width, height }` per shape — rectangles wider than tall, circles square, diamonds larger for label room), and the drag payload contract (`SHAPE_DRAG_MIME_TYPE`, `ShapeDragPayload`).
+  - `components/editor/shape-panel.tsx` (new) — floating pill toolbar (`rounded-full`, `bg-surface/95`, bottom-center overlay), one draggable icon button per shape (lucide icons), setting the shape + default size as a JSON drag payload under `SHAPE_DRAG_MIME_TYPE` on `dragstart`.
+  - `components/editor/canvas-node.tsx` (new) — `CanvasNodeRenderer`, the first renderer for the `canvasNode` React Flow type: every shape renders as a simple bordered rectangle (`data.color` as background, centered `data.label`) with four hover-revealed connection handles (per `ui-context.md`'s documented handle convention), needed so the pre-existing `onConnect` wiring keeps working once real (non-empty) nodes exist. Shape-specific outlines are explicitly deferred, per the spec.
+  - `components/editor/collab-canvas.tsx` — split into an outer `CollabCanvas` (wraps `ReactFlowProvider`) and an inner `CanvasFlow` (owns `useLiveblocksFlow`, `useReactFlow`, and the new drag/drop handlers), since `screenToFlowPosition` requires a component nested under `ReactFlowProvider`. Added `nodeTypes={{ canvasNode: CanvasNodeRenderer }}` to `<ReactFlow>` and rendered `<ShapePanel />` as an absolutely positioned overlay inside the same wrapper div that now owns `onDragOver`/`onDrop`. On drop: reads the shape payload, converts the pointer position via `screenToFlowPosition`, builds a `CanvasNode` (empty label, `DEFAULT_NODE_COLOR`, the dragged shape, `id` generated from `${shape}-${Date.now()}-${counter}` via a per-mount `useRef` counter), and applies it with `onNodesChange([{ type: "add", item: newNode }])` (React Flow's standard node-add change, which `useLiveblocksFlow`'s `onNodesChange` persists to Storage).
+- **Architecture decisions**:
+  - Node width/height are set as top-level `CanvasNode.width`/`height` (not inside `data`), since `@xyflow/react` reads `node.width ?? node.initialWidth ?? node.style?.width` to size the node wrapper's inline style before measurement — this lets `CanvasNodeRenderer` just fill `h-full w-full` rather than re-deriving size from shape.
+  - Connection handles were added to `CanvasNodeRenderer` even though the spec's own text only asked for "a bordered rectangle with the label centered" — without them, `ReactFlow`'s already-wired `onConnect`/`ConnectionMode.Loose` would have no way to attach to the first real node type. This is plumbing to keep existing behavior working, not new product behavior, and follows `ui-context.md`'s already-documented handle spec (hidden by default, revealed on hover, one per side).
+- **Session notes**: Verified `tsc --noEmit`, `npm run lint`, and `npm run build` all pass. End-to-end verified against the running dev server with a real Clerk test-mode user (created/cleaned up via the Backend API, signed in via a sign-in-ticket flow) and a temporary `puppeteer-core` script (installed with `--no-save`, removed after use): the shape panel renders all 6 buttons at the bottom-center of the canvas; a simulated HTML5 drag (native `DataTransfer` + `dragstart`/`dragover`/`drop` events, dispatched from the "Rectangle" button onto `.react-flow__pane`) produced a `.react-flow__node-canvasNode` element sized exactly `160×88` with background `rgb(31, 31, 31)` (`#1F1F1F`) — confirming the drag payload, coordinate conversion, node creation, and new renderer all work together. Test project and Clerk user were deleted after verification (confirmed via a direct Prisma query that no `shape-panel-verify-*` project rows remain).
+
+### Follow-up — Full-Bleed Canvas & Floating Sidebars
+
+No spec file (user-directed fix, reported via screenshots of the running app rather than a written spec) — complete.
+
+- **Completed**:
+  - `components/editor/editor-shell.tsx` — removed the `p-4 gap-3` wrapper around the sidebar/canvas row; the content area below the navbar is now a plain `relative flex-1 overflow-hidden` region with no padding separating the canvas from the viewport edges.
+  - `components/editor/project-sidebar.tsx` — removed the `lg:static lg:h-full lg:shrink-0 lg:translate-x-0 lg:shadow-none` desktop overrides that made it participate in the flex row (pushing/shrinking the canvas) above the `lg` breakpoint. It's now `position: fixed` at every breakpoint, floating over the canvas. Fixed the closed-state offset from `-translate-x-[calc(100%+1rem)]` to `-translate-x-[calc(100%+5rem)]` — the smaller offset moved the panel's box fully off-screen but left its `shadow-2xl` blur radius (~50px) visible past the viewport edge; the larger offset clears the blur too.
+  - `components/editor/workspace-canvas.tsx` — removed the `rounded-3xl border border-surface-border` "card" wrapper around the canvas (it now sits directly on `bg-base`, full width/height). Converted the AI Copilot panel from a flex sibling (occupying row width, only ever rendered on `lg` via conditional mount) to a `position: fixed` floating overlay on the right, mirroring `ProjectSidebar`'s pattern (`bg-surface/95`, `backdrop-blur-sm`, `shadow-2xl`, same `translate-x` open/close transition and closed-state buffer).
+  - `context/ui-context.md` — "Layout Patterns" rewritten to describe the new model (full-bleed canvas, always-fixed floating sidebars) in place of the old "shared row of rounded panels" description from Feature 08.
+- **Architecture decisions**:
+  - This reverses Feature 08's original layout decision (a flex row of matching rounded panels), which had been deliberately chosen to match a different reference screenshot at the time. The user provided a new reference (their own running app, looking like a floating "card" canvas) plus an explicit issue list asking for the canvas to read as full-bleed/infinite and both sidebars to float over it instead of resizing it — that supersedes the earlier decision.
+  - The AI sidebar's floating panel is `hidden lg:flex` (matching its previous `lg`-only scope) — this pass didn't add mobile support for it, since that wasn't part of the reported issues and wasn't in scope before either.
+- **Session notes**: Verified `tsc --noEmit` and `npm run lint` pass. End-to-end verified against the dev server with a real Clerk test-mode user (created/cleaned up via the Backend API) and a temporary `puppeteer-core` script (removed after use): the canvas's `<main>` and the React Flow `.react-flow__background` both measure the full content-area viewport (no inset); both `aside` elements compute to `position: fixed`; closing the project sidebar moves its box to `right: -64px` (fully clear of the viewport including shadow blur) and closing the AI sidebar moves its box to `left: 1464px` against a 1400px-wide viewport (same clearance on the other side); a simulated drag-and-drop from the shape panel still created a `canvasNode` correctly after the layout change. Screenshots confirmed the canvas now reads as full-bleed with both panels floating over it, matching the requested Figma/Excalidraw-style look. Test project and Clerk user were deleted after verification.
+
 ## Next Up
 
-- Build the real collaborative canvas (Liveblocks + React Flow) inside `WorkspaceCanvas` at `/editor/[roomId]`, replacing the current placeholder content.
+- Real per-shape visuals for `canvasNode` (inline SVGs for diamond/hexagon/cylinder, per `ui-context.md`) — Feature 12 only renders every shape as a bordered rectangle.
+- Node color picking (the 8-pair `NODE_COLORS` palette from `ui-context.md`) and label editing — no spec yet.
+- Verify multi-user presence (two sessions in the same room showing each other's live cursors) — only single-session rendering has been confirmed so far.
+- Starter system design templates, AI architecture generation, and spec generation remain unbuilt (`project-overview.md` scope, no spec files yet).
 
 ## Open Questions
 
-- None open for this feature — the sidebar's "click a project row to open its workspace" gap (previously listed here) was fixed as part of Feature 08.
+- None open currently.
 
 ## Architecture Decisions
 

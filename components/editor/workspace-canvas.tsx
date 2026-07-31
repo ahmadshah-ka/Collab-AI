@@ -1,46 +1,51 @@
 "use client"
 
-import { Bot, Compass, Sparkles } from "lucide-react"
+import { Bot, Sparkles } from "lucide-react"
+import { ClientSideSuspense, LiveblocksProvider, RoomProvider } from "@liveblocks/react/suspense"
+import { ErrorBoundary } from "react-error-boundary"
 
 import { Card } from "@/components/ui/card"
+import { CollabCanvas } from "@/components/editor/collab-canvas"
 import { useWorkspaceUiContext } from "@/components/editor/workspace-ui-context"
+import { cn } from "@/lib/utils"
 
-export function WorkspaceCanvas() {
+interface WorkspaceCanvasProps {
+  roomId: string
+}
+
+export function WorkspaceCanvas({ roomId }: WorkspaceCanvasProps) {
   const { isAiSidebarOpen } = useWorkspaceUiContext()
 
   return (
-    <div className="flex h-full gap-3">
-      <div className="relative flex min-w-0 flex-1 items-center justify-center overflow-hidden rounded-3xl border border-surface-border bg-base px-6">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-60"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 50% 45%, var(--accent-primary-dim), transparent 60%), linear-gradient(var(--border-default) 1px, transparent 1px), linear-gradient(90deg, var(--border-default) 1px, transparent 1px)",
-            backgroundSize: "100% 100%, 32px 32px, 32px 32px",
-          }}
-        />
-        <div className="relative flex max-w-md flex-col items-center gap-4 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-brand/40 bg-accent-dim">
-            <Compass className="h-6 w-6 text-brand" />
-          </div>
-          <p className="text-xs font-medium tracking-[0.2em] text-copy-faint uppercase">
-            Workspace shell
-          </p>
-          <h2 className="text-2xl font-medium text-copy-primary">
-            Canvas and collaboration tooling land here next.
-          </h2>
-          <p className="text-sm text-copy-muted">
-            This room is ready for the shared architecture canvas, durable AI
-            workflows, and real-time presence. For now, the shell is wired
-            with project context and navigation only.
-          </p>
-        </div>
-      </div>
+    <LiveblocksProvider authEndpoint="/api/liveblocks-auth">
+      <RoomProvider id={roomId} initialPresence={{ cursor: null, isThinking: false }}>
+        <div className="relative h-full w-full bg-base">
+          <ErrorBoundary
+            fallback={
+              <div className="flex h-full items-center justify-center text-sm text-copy-muted">
+                Couldn&apos;t connect to the canvas.
+              </div>
+            }
+          >
+            <ClientSideSuspense
+              fallback={
+                <div className="flex h-full items-center justify-center text-sm text-copy-muted">
+                  Loading canvas…
+                </div>
+              }
+            >
+              <CollabCanvas />
+            </ClientSideSuspense>
+          </ErrorBoundary>
 
-      {isAiSidebarOpen ? (
-        <aside className="hidden w-80 shrink-0 overflow-hidden rounded-3xl border border-surface-border bg-surface lg:block">
-          <div className="flex h-full flex-col">
+          <aside
+            inert={!isAiSidebarOpen}
+            aria-hidden={!isAiSidebarOpen}
+            className={cn(
+              "fixed top-[4.5rem] bottom-4 right-4 z-40 hidden w-80 flex-col overflow-hidden rounded-3xl border border-surface-border bg-surface/95 shadow-2xl backdrop-blur-sm transition-transform duration-200 ease-in-out lg:flex",
+              isAiSidebarOpen ? "translate-x-0" : "translate-x-[calc(100%+5rem)]"
+            )}
+          >
             <div className="flex items-start justify-between gap-2 border-b border-surface-border p-4">
               <div>
                 <h3 className="font-heading text-sm font-medium text-copy-primary">
@@ -72,14 +77,14 @@ export function WorkspaceCanvas() {
                   Future hooks
                 </p>
                 <p className="mt-1 text-xs text-copy-muted">
-                  Prompt composer, run status, and architecture guidance will
-                  attach to this sidebar.
+                  Prompt composer, run status, and architecture guidance
+                  will attach to this sidebar.
                 </p>
               </div>
             </div>
-          </div>
-        </aside>
-      ) : null}
-    </div>
+          </aside>
+        </div>
+      </RoomProvider>
+    </LiveblocksProvider>
   )
 }

@@ -21,7 +21,7 @@ export interface EnrichedAccessPerson extends EnrichedCollaborator {
   role: "owner" | "collaborator"
 }
 
-function getDisplayName(user: {
+export function getDisplayName(user: {
   fullName?: string | null
   firstName?: string | null
   lastName?: string | null
