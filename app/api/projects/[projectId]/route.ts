@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextRequest, NextResponse } from "next/server"
 
-import type { Project } from "@/app/generated/prisma/client"
+import { Prisma, type Project } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/prisma"
 
 async function requireOwnedProject(
@@ -45,10 +45,25 @@ export async function PATCH(
     return NextResponse.json({ error: "Name is required" }, { status: 400 })
   }
 
-  const project = await prisma.project.update({
-    where: { id: projectId },
-    data: { name },
-  })
+  const project = await prisma.project
+    .update({
+      where: { id: projectId, ownerId: userId },
+      data: { name },
+    })
+    .catch((err) => {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2025"
+      ) {
+        return null
+      }
+
+      throw err
+    })
+
+  if (!project) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 })
+  }
 
   return NextResponse.json({ project })
 }
@@ -70,7 +85,13 @@ export async function DELETE(
     return owned
   }
 
-  await prisma.project.delete({ where: { id: projectId } })
+  const { count } = await prisma.project.deleteMany({
+    where: { id: projectId, ownerId: userId },
+  })
+
+  if (count === 0) {
+    return NextResponse.json({ error: "Project not found" }, { status: 404 })
+  }
 
   return new NextResponse(null, { status: 204 })
 }
