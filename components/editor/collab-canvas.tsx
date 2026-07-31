@@ -11,7 +11,7 @@ import {
   useReactFlow,
 } from "@xyflow/react"
 import { Cursors, useLiveblocksFlow } from "@liveblocks/react-flow"
-import { useCanRedo, useCanUndo, useRedo, useUndo } from "@liveblocks/react"
+import { useCanRedo, useCanUndo, useRedo, useRoom, useUndo } from "@liveblocks/react"
 
 import { CanvasControlBar } from "@/components/editor/canvas-control-bar"
 import { CanvasEdgeRenderer } from "@/components/editor/canvas-edge"
@@ -54,6 +54,7 @@ function CanvasFlow() {
   const reactFlowInstance = useReactFlow()
   const { screenToFlowPosition } = reactFlowInstance
   const nodeCounter = useRef(0)
+  const room = useRoom()
 
   const undo = useUndo()
   const redo = useRedo()
@@ -66,13 +67,14 @@ function CanvasFlow() {
 
   const handleImportTemplate = useCallback(
     (template: CanvasTemplate) => {
-      onEdgesChange(edges.map((edge) => ({ type: "remove" as const, id: edge.id })))
-      onNodesChange(nodes.map((node) => ({ type: "remove" as const, id: node.id })))
-      onNodesChange(template.nodes.map((item) => ({ type: "add" as const, item })))
-      onEdgesChange(template.edges.map((item) => ({ type: "add" as const, item })))
+      room.batch(() => {
+        onDelete({ nodes, edges })
+        onNodesChange(template.nodes.map((item) => ({ type: "add" as const, item })))
+        onEdgesChange(template.edges.map((item) => ({ type: "add" as const, item })))
+      })
       requestAnimationFrame(() => reactFlowInstance.fitView({ duration: 200 }))
     },
-    [nodes, edges, onNodesChange, onEdgesChange, reactFlowInstance],
+    [nodes, edges, onDelete, onNodesChange, onEdgesChange, reactFlowInstance, room],
   )
 
   useEffect(() => {

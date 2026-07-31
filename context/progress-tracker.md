@@ -11,7 +11,7 @@ Update this file whenever the current phase, active feature, or implementation s
 - Feature 14: Node Editing (context/feature-specs/14-node-editing.md) — complete.
 - Feature 15: Node Color Toolbar (context/feature-specs/15-node-color-toolbar.md) — complete.
 - Feature 16: Edge Behavior (context/feature-specs/16-edge-behavior.md) — complete.
-- Feature 17: Canvas Ergonomics (context/feature-specs/17-canvas-ergonomics.md.md) — complete.
+- Feature 17: Canvas Ergonomics (context/feature-specs/17-canvas-ergonomics.md) — complete.
 - Feature 18: Starter Templates (context/feature-specs/18-starter-templates.md) — complete.
 
 ## Current Goal
@@ -299,7 +299,7 @@ Spec: `context/feature-specs/16-edge-behavior.md` — complete.
 
 ### Feature 17 — Canvas Ergonomics
 
-Spec: `context/feature-specs/17-canvas-ergonomics.md.md` — complete.
+Spec: `context/feature-specs/17-canvas-ergonomics.md` — complete.
 
 - **Completed**:
   - `components/editor/canvas-control-bar.tsx` (new) — `CanvasControlBar`, a floating `rounded-full` pill at the bottom-left of the canvas (`z-20`, above the shape panel's `z-10`), matching the shape panel's `bg-surface/95`/`border-surface-border`/`backdrop-blur` styling. Two button groups (zoom out/fit view/zoom in, then undo/redo) separated by a thin `bg-subtle-border` divider. Undo/redo buttons take `disabled` from `canUndo`/`canRedo` and use `disabled:opacity-40 disabled:pointer-events-none` for the dimmed state.

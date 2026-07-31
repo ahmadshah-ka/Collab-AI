@@ -80,7 +80,7 @@ export function CanvasNodeRenderer({ id, data, selected }: NodeProps<CanvasNode>
       ) : (
         <div
           onDoubleClick={startEditing}
-          style={{ color: data.textColor }}
+          style={{ color: textColor }}
           className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs"
         >
           {data.label || <span className="text-copy-faint">Label</span>}
