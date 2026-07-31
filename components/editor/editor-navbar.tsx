@@ -1,11 +1,12 @@
 "use client"
 
 import { UserButton } from "@clerk/nextjs"
-import { PanelLeftClose, PanelLeftOpen, Share2, Sparkles } from "lucide-react"
+import { LayoutTemplate, PanelLeftClose, PanelLeftOpen, Share2, Sparkles } from "lucide-react"
 import { useParams } from "next/navigation"
 
 import { useProjectDialogsContext } from "@/components/editor/project-dialogs-context"
 import { useShareDialogContext } from "@/components/editor/share-dialog-context"
+import { useStarterTemplatesContext } from "@/components/editor/starter-templates-context"
 import { useWorkspaceUiContext } from "@/components/editor/workspace-ui-context"
 import { Button } from "@/components/ui/button"
 
@@ -23,6 +24,7 @@ export function EditorNavbar({
   const { roomId } = useParams<{ roomId?: string }>()
   const { ownedProjects, sharedProjects } = useProjectDialogsContext()
   const { openShareDialog } = useShareDialogContext()
+  const { openTemplatesModal } = useStarterTemplatesContext()
   const { isAiSidebarOpen, toggleAiSidebar } = useWorkspaceUiContext()
 
   const ownedProject = roomId
@@ -62,6 +64,15 @@ export function EditorNavbar({
       <div className="flex flex-1 items-center justify-end gap-2">
         {project ? (
           <>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={openTemplatesModal}
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              Templates
+            </Button>
             <Button
               variant="outline"
               size="sm"

@@ -68,7 +68,7 @@ Default node color: `#1F1F1F` with `#EDEDED` text.
 
 ### Edge Style
 
-Smooth-step path with an arrow marker. Default edge color: `#f8fafc`. Stroke width is thin — edges are visually secondary to nodes.
+Right-angle (smooth-step, zero border radius) routing with an arrow marker. Default edge color: `#f8fafc`. Stroke width is thin (1.5px) with rounded line caps — edges are visually secondary to nodes. Edges are dimmed at rest and brighten to full opacity on hover or selection; the clickable/hoverable area is wider than the visible line so edges stay easy to grab without looking thicker. Double-clicking an edge opens an inline label editor positioned at the path midpoint; saved labels render as small pill badges, unlabeled hovered/selected edges show a faint "Add label" hint.
 
 ### Node Shapes
 
