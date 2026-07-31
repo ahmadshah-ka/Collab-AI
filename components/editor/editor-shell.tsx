@@ -8,6 +8,8 @@ import { ProjectDialogsProvider } from "@/components/editor/project-dialogs-cont
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
 import { ShareDialog } from "@/components/editor/share-dialog"
 import { ShareDialogProvider } from "@/components/editor/share-dialog-context"
+import { StarterTemplatesModal } from "@/components/editor/starter-templates-modal"
+import { StarterTemplatesProvider } from "@/components/editor/starter-templates-context"
 import { WorkspaceUiProvider } from "@/components/editor/workspace-ui-context"
 import type { Project } from "@/types/project"
 
@@ -30,23 +32,26 @@ export function EditorShell({
       sharedProjects={sharedProjects}
     >
       <ShareDialogProvider>
-        <WorkspaceUiProvider>
-          <div className="flex h-screen flex-col bg-base">
-            <EditorNavbar
-              isSidebarOpen={isSidebarOpen}
-              onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
-            />
-            <div className="relative flex-1 overflow-hidden">
-              <ProjectSidebar
-                isOpen={isSidebarOpen}
-                onClose={() => setIsSidebarOpen(false)}
+        <StarterTemplatesProvider>
+          <WorkspaceUiProvider>
+            <div className="flex h-screen flex-col bg-base">
+              <EditorNavbar
+                isSidebarOpen={isSidebarOpen}
+                onToggleSidebar={() => setIsSidebarOpen((open) => !open)}
               />
-              <main className="h-full w-full">{children}</main>
+              <div className="relative flex-1 overflow-hidden">
+                <ProjectSidebar
+                  isOpen={isSidebarOpen}
+                  onClose={() => setIsSidebarOpen(false)}
+                />
+                <main className="h-full w-full">{children}</main>
+              </div>
+              <ProjectDialogs />
+              <ShareDialog />
+              <StarterTemplatesModal />
             </div>
-            <ProjectDialogs />
-            <ShareDialog />
-          </div>
-        </WorkspaceUiProvider>
+          </WorkspaceUiProvider>
+        </StarterTemplatesProvider>
       </ShareDialogProvider>
     </ProjectDialogsProvider>
   )
